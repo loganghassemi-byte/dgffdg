@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Doggy Dash</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #0a0a0a;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none;
+            user-select: none;
+        }
+        canvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+        }
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+        }
+        .menu-card {
+            background: rgba(20, 20, 20, 0.9);
+            backdrop-filter: blur(10px);
+            padding: 2.5rem;
+            border-radius: 1.5rem;
+            border: 2px solid #ffcc00;
+            text-align: center;
+            pointer-events: auto;
+            box-shadow: 0 0 30px rgba(255, 204, 0, 0.2);
+        }
+        .btn {
+            background: #ffcc00;
+            color: #000;
+            padding: 0.8rem 2.5rem;
+            border-radius: 0.75rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            border: none;
+            margin-top: 1.5rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+        .btn:hover {
+            background: #fff;
+            transform: scale(1.1);
+            box-shadow: 0 0 25px #ffcc00;
+        }
+        #score-display {
+            position: absolute;
+            top: 30px;
+            left: 30px;
+            font-size: 1.75rem;
+            font-weight: 900;
+            color: #ffcc00;
+            text-shadow: 0 0 10px rgba(255, 204, 0, 0.7);
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="score-display">Distance: 0m</div>
+
+    <div id="ui-layer">
+        <!-- Start Menu -->
+        <div id="start-menu" class="menu-card">
+            <h1 class="text-5xl font-black mb-4 italic tracking-tighter">DOGGY <span class="text-yellow-400">DASH</span></h1>
+            <p class="mb-6 opacity-80 font-medium">Watch out for the cat claws!</p>
+            <button class="btn" onclick="startGame()">Start Running</button>
+            <div class="mt-6 text-xs uppercase opacity-40 tracking-widest">Space / Click / Tap to Jump</div>
+        </div>
+
+        <!-- Game Over Menu -->
+        <div id="game-over-menu" class="menu-card hidden">
+            <h2 class="text-4xl font-black mb-2 text-red-500 italic">CAUGHT!</h2>
+            <p id="final-score" class="text-2xl mb-6 font-mono font-bold text-white"></p>
+            <button class="btn" onclick="startGame()">Try Again</button>
+        </div>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score-display');
+        const startMenu = document.getElementById('start-menu');
+        const gameOverMenu = document.getElementById('game-over-menu');
+        const finalScoreText = document.getElementById('final-score');
+
+        // Physics Settings
+        const GRAVITY = 0.48;
+        const JUMP_FORCE = -12.5;
+        const SPEED = 4.8;
+        const GROUND_Y_OFFSET = 120;
+
+        let gameRunning = false;
+        let score = 0;
+        let animationFrame;
+        
+        let player = {
+            x: 150,
+            y: 0,
+            width: 50,
+            height: 50,
+            dy: 0,
+            rotation: 0,
+            onGround: false,
+            color: '#e0ac69' // Golden retriever color
+        };
+
+        let obstacles = [];
+        let particles = [];
+        let groundY = 0;
+
+        function init() {
+            resize();
+            player.y = groundY - player.height;
+            player.dy = 0;
+            player.rotation = 0;
+            obstacles = [];
+            particles = [];
+            score = 0;
+            scoreDisplay.innerText = `Distance: 0m`;
+        }
+
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            groundY = canvas.height - GROUND_Y_OFFSET;
+        }
+
+        window.addEventListener('resize', resize);
+
+        function handleInput(e) {
+            if (!gameRunning) return;
+            if (e.code === 'Space' || e.type === 'mousedown' || e.type === 'touchstart') {
+                if (player.onGround) {
+                    player.dy = JUMP_FORCE;
+                    player.onGround = false;
+                }
+            }
+        }
+
+        window.addEventListener('keydown', handleInput);
+        window.addEventListener('mousedown', handleInput);
+        window.addEventListener('touchstart', (e) => {
+            if (e.target.tagName !== 'BUTTON') {
+                e.preventDefault();
+                handleInput(e);
+            }
+        }, { passive: false });
+
+        function startGame() {
+            init();
+            gameRunning = true;
+            startMenu.classList.add('hidden');
+            gameOverMenu.classList.add('hidden');
+            if (animationFrame) cancelAnimationFrame(animationFrame);
+            animate();
+        }
+
+        function endGame() {
+            gameRunning = false;
+            createExplosion(player.x + player.width/2, player.y + player.height/2, player.color);
+            gameOverMenu.classList.remove('hidden');
+            finalScoreText.innerText = `Distance: ${Math.floor(score)}m`;
+        }
+
+        function spawnObstacle() {
+            const types = ['claw', 'paw', 'swipe'];
+            const type = types[Math.floor(Math.random() * types.length)];
+            let lastX = obstacles.length > 0 ? obstacles[obstacles.length - 1].x : canvas.width;
+            let spawnX = Math.max(canvas.width + 200, lastX + 500 + Math.random() * 500);
+
+            let obs = {
+                x: spawnX,
+                type: type,
+                width: 50,
+                height: 50
+            };
+
+            if (type === 'paw') { obs.width = 65; obs.height = 80; }
+            if (type === 'swipe') { obs.width = 100; obs.height = 45; }
+            obstacles.push(obs);
+        }
+
+        function createExplosion(x, y, color) {
+            for (let i = 0; i < 25; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 10,
+                    vy: (Math.random() - 0.5) * 10,
+                    size: Math.random() * 5 + 2,
+                    life: 1.0,
+                    color: color
+                });
+            }
+        }
+
+        function drawDog() {
+            ctx.save();
+            ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
+            ctx.rotate(player.rotation);
+            
+            const size = player.width;
+            const half = size / 2;
+
+            // Tail
+            ctx.fillStyle = '#c68e4f';
+            ctx.beginPath();
+            ctx.ellipse(-half, 0, 15, 6, Math.PI/4, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Body
+            ctx.fillStyle = player.color;
+            ctx.beginPath();
+            ctx.roundRect(-half, -half + 10, size, size - 10, 10);
+            ctx.fill();
+
+            // Head
+            ctx.beginPath();
+            ctx.arc(half - 10, -half + 5, 20, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Ears
+            ctx.fillStyle = '#8d5d2e';
+            ctx.beginPath();
+            ctx.ellipse(half - 25, -half - 5, 12, 6, Math.PI/3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(half + 5, -half - 5, 12, 6, -Math.PI/3, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Eyes
+            ctx.fillStyle = 'white';
+            ctx.beginPath();
+            ctx.arc(half - 15, -half, 5, 0, Math.PI * 2);
+            ctx.arc(half - 2, -half, 5, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = 'black';
+            ctx.beginPath();
+            ctx.arc(half - 15, -half, 2, 0, Math.PI * 2);
+            ctx.arc(half - 2, -half, 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Nose
+            ctx.beginPath();
+            ctx.arc(half - 8, -half + 8, 3, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.restore();
+        }
+
+        function drawCatPaw(x, y, w, h, isLarge) {
+            ctx.save();
+            
+            // Cat Fur Color (Grey/Dark Grey)
+            const furColor = '#4a4a4a';
+            const padColor = '#ff9999'; // Pink toe pads
+            const clawColor = '#ffffff'; // White claws
+            
+            const toeCount = isLarge ? 4 : 3;
+            const toeWidth = w / toeCount;
+            
+            // Draw Claws first (behind the paw)
+            ctx.fillStyle = clawColor;
+            ctx.shadowBlur = 5;
+            ctx.shadowColor = '#fff';
+            for(let i = 0; i < toeCount; i++) {
+                const centerX = x + (i * toeWidth) + (toeWidth/2);
+                ctx.beginPath();
+                ctx.moveTo(centerX - 4, y - h * 0.4);
+                ctx.quadraticCurveTo(centerX, y - h, centerX + 4, y - h * 0.4);
+                ctx.fill();
+            }
+            ctx.shadowBlur = 0;
+
+            // Draw Toes/Fur
+            ctx.fillStyle = furColor;
+            for(let i = 0; i < toeCount; i++) {
+                const centerX = x + (i * toeWidth) + (toeWidth/2);
+                ctx.beginPath();
+                ctx.ellipse(centerX, y - h * 0.3, toeWidth/2, h * 0.4, 0, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Toe Pads
+                ctx.fillStyle = padColor;
+                ctx.beginPath();
+                ctx.ellipse(centerX, y - h * 0.35, toeWidth/3, h * 0.2, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = furColor;
+            }
+
+            // Main Paw Pad Base
+            ctx.beginPath();
+            ctx.roundRect(x, y - h * 0.2, w, h * 0.3, 10);
+            ctx.fill();
+            
+            ctx.restore();
+        }
+
+        function drawObstacle(obs) {
+            if (obs.type === 'claw') {
+                drawCatPaw(obs.x, groundY, obs.width, obs.height, false);
+            } else if (obs.type === 'paw') {
+                drawCatPaw(obs.x, groundY, obs.width, obs.height, true);
+            } else if (obs.type === 'swipe') {
+                drawCatPaw(obs.x, groundY, obs.width, obs.height, true);
+            }
+        }
+
+        function animate() {
+            if (!gameRunning) {
+                ctx.fillStyle = '#0a0a0a';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                updateParticles();
+                if (particles.length > 0) animationFrame = requestAnimationFrame(animate);
+                return;
+            }
+
+            // Draw Background
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Ground (Wooden floor style)
+            ctx.fillStyle = '#1a0d00';
+            ctx.fillRect(0, groundY, canvas.width, GROUND_Y_OFFSET);
+            ctx.strokeStyle = '#331a00';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(0, groundY);
+            ctx.lineTo(canvas.width, groundY);
+            ctx.stroke();
+
+            // Floorboards
+            ctx.strokeStyle = '#261400';
+            ctx.lineWidth = 1;
+            for (let i = 0; i < canvas.width; i += 80) {
+                let x = (i - (score * SPEED * 2) % 80); 
+                ctx.beginPath();
+                ctx.moveTo(x, groundY);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+
+            // Player Update
+            player.dy += GRAVITY;
+            player.y += player.dy;
+
+            if (player.y + player.height > groundY) {
+                player.y = groundY - player.height;
+                player.dy = 0;
+                player.onGround = true;
+                player.rotation = 0;
+            } else {
+                player.rotation += 0.12; 
+            }
+
+            score += 0.05;
+            scoreDisplay.innerText = `Distance: ${Math.floor(score)}m`;
+
+            if (obstacles.length < 5) spawnObstacle();
+
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                let obs = obstacles[i];
+                obs.x -= SPEED;
+                drawObstacle(obs);
+
+                // Collision
+                if (player.x + player.width - 15 > obs.x && 
+                    player.x + 15 < obs.x + obs.width && 
+                    player.y + player.height - 8 > groundY - obs.height) {
+                    endGame();
+                }
+
+                if (obs.x + obs.width < -100) obstacles.splice(i, 1);
+            }
+
+            updateParticles();
+            drawDog();
+
+            animationFrame = requestAnimationFrame(animate);
+        }
+
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.2;
+                p.life -= 0.02;
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x, p.y, p.size, p.size);
+                ctx.globalAlpha = 1;
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
