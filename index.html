@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Doggy Dash</title>
+    <title>Doggy Dash: Hardcore</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         body {
             margin: 0;
             padding: 0;
             overflow: hidden;
-            background-color: #0a0a0a;
+            background-color: #050505;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             touch-action: none;
             user-select: none;
@@ -34,62 +34,97 @@
             color: white;
         }
         .menu-card {
-            background: rgba(20, 20, 20, 0.9);
-            backdrop-filter: blur(10px);
-            padding: 2.5rem;
-            border-radius: 1.5rem;
-            border: 2px solid #ffcc00;
+            background: rgba(10, 10, 10, 0.95);
+            backdrop-filter: blur(15px);
+            padding: 3rem;
+            border-radius: 2rem;
+            border: 3px solid #ffcc00;
             text-align: center;
             pointer-events: auto;
-            box-shadow: 0 0 30px rgba(255, 204, 0, 0.2);
+            box-shadow: 0 0 50px rgba(255, 204, 0, 0.3);
         }
         .btn {
             background: #ffcc00;
             color: #000;
-            padding: 0.8rem 2.5rem;
+            padding: 1rem 3rem;
             border-radius: 0.75rem;
-            font-weight: 800;
+            font-weight: 900;
             cursor: pointer;
             transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
             border: none;
             margin-top: 1.5rem;
             text-transform: uppercase;
-            letter-spacing: 2px;
+            letter-spacing: 3px;
         }
         .btn:hover {
-            background: #fff;
+            background: #ffffff;
+            color: #ffcc00;
             transform: scale(1.1);
-            box-shadow: 0 0 25px #ffcc00;
+            box-shadow: 0 0 30px #ffcc00;
         }
         #score-display {
             position: absolute;
             top: 30px;
             left: 30px;
-            font-size: 1.75rem;
+            font-size: 2rem;
             font-weight: 900;
+            color: #ff4400;
+            text-shadow: 0 0 15px rgba(255, 68, 0, 0.5);
+            letter-spacing: 2px;
+            font-family: monospace;
+        }
+        #speed-o-meter {
+            position: absolute;
+            top: 70px;
+            left: 30px;
+            font-size: 0.9rem;
+            color: #ffaa00;
+            opacity: 0.8;
+            font-weight: bold;
+        }
+        #tutorial-hint {
+            position: absolute;
+            bottom: 40px;
+            width: 100%;
+            text-align: center;
             color: #ffcc00;
-            text-shadow: 0 0 10px rgba(255, 204, 0, 0.7);
+            font-weight: bold;
             letter-spacing: 1px;
+            text-transform: uppercase;
+            text-shadow: 0 0 10px rgba(255, 204, 0, 0.5);
+            pointer-events: none;
+        }
+        .version-badge {
+            font-size: 0.7rem;
+            background: #444;
+            padding: 2px 8px;
+            border-radius: 10px;
+            vertical-align: middle;
+            margin-left: 10px;
+            color: #ccc;
         }
     </style>
 </head>
 <body>
 
-    <div id="score-display">Distance: 0m</div>
+    <div id="score-display">0000m</div>
+    <div id="speed-o-meter">Speed: 1.0x</div>
+    <div id="tutorial-hint">Click Golden Spikes for +10 pts & Fly! (Don't touch them!)</div>
 
     <div id="ui-layer">
-        <!-- Start Menu -->
         <div id="start-menu" class="menu-card">
-            <h1 class="text-5xl font-black mb-4 italic tracking-tighter">DOGGY <span class="text-yellow-400">DASH</span></h1>
-            <p class="mb-6 opacity-80 font-medium">Watch out for the cat claws!</p>
+            <h1 class="text-6xl font-black mb-4 italic tracking-tighter">
+                DOGGY <span class="text-yellow-500">DASH</span>
+                <span class="version-badge">v2.1-PR</span>
+            </h1>
+            <p class="mb-2 text-xl font-bold text-yellow-400 uppercase tracking-widest">Extreme Spike Edition</p>
+            <p class="mb-6 opacity-70 font-medium">Spikes everywhere! Click the golden ones to survive.</p>
             <button class="btn" onclick="startGame()">Start Running</button>
-            <div class="mt-6 text-xs uppercase opacity-40 tracking-widest">Space / Click / Tap to Jump</div>
         </div>
 
-        <!-- Game Over Menu -->
         <div id="game-over-menu" class="menu-card hidden">
-            <h2 class="text-4xl font-black mb-2 text-red-500 italic">CAUGHT!</h2>
-            <p id="final-score" class="text-2xl mb-6 font-mono font-bold text-white"></p>
+            <h2 class="text-5xl font-black mb-2 text-red-600 italic">CAUGHT!</h2>
+            <p id="final-score" class="text-3xl mb-6 font-mono font-bold text-white"></p>
             <button class="btn" onclick="startGame()">Try Again</button>
         </div>
     </div>
@@ -97,36 +132,52 @@
     <canvas id="gameCanvas"></canvas>
 
     <script>
+        /** * DEV LOG / CHANGE "POOL":
+         * - Added Golden Spike collision logic (Instant Game Over)
+         * - Added Golden Spike click logic (Bonus Points + Super Jump)
+         * - Fixed Dog layering (Head/Ears/Body order)
+         * - Increased obstacle density for "Hardcore" mode
+         * - Added Version Badge for GitHub PR tracking
+         */
+        console.log("Doggy Dash Version 2.1-PR Loaded. Proposed changes: Spike Interactions & Dog Visual Fixes.");
+
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         const scoreDisplay = document.getElementById('score-display');
+        const speedDisplay = document.getElementById('speed-o-meter');
         const startMenu = document.getElementById('start-menu');
         const gameOverMenu = document.getElementById('game-over-menu');
         const finalScoreText = document.getElementById('final-score');
 
-        // Physics Settings
-        const GRAVITY = 0.48;
-        const JUMP_FORCE = -12.5;
-        const SPEED = 4.8;
+        const BASE_GRAVITY = 0.58;
+        const BASE_JUMP = -16.5;
+        const ORB_JUMP = -23; 
+        const BASE_SPEED = 6.5;
+        const SPEED_INCREMENT = 0.0008; 
         const GROUND_Y_OFFSET = 120;
+        const ORB_HIT_RADIUS = 100; 
 
         let gameRunning = false;
         let score = 0;
+        let currentSpeed = BASE_SPEED;
         let animationFrame;
+        let tick = 0;
         
         let player = {
-            x: 150,
+            x: 120,
             y: 0,
-            width: 50,
+            width: 70,
             height: 50,
             dy: 0,
             rotation: 0,
             onGround: false,
-            color: '#e0ac69' // Golden retriever color
+            color: '#e0ac69',
+            isPowered: 0 
         };
 
         let obstacles = [];
         let particles = [];
+        let orbs = [];
         let groundY = 0;
 
         function init() {
@@ -134,10 +185,15 @@
             player.y = groundY - player.height;
             player.dy = 0;
             player.rotation = 0;
+            player.onGround = true;
+            player.isPowered = 0;
             obstacles = [];
             particles = [];
+            orbs = [];
             score = 0;
-            scoreDisplay.innerText = `Distance: 0m`;
+            currentSpeed = BASE_SPEED;
+            tick = 0;
+            updateUI();
         }
 
         function resize() {
@@ -150,15 +206,47 @@
 
         function handleInput(e) {
             if (!gameRunning) return;
-            if (e.code === 'Space' || e.type === 'mousedown' || e.type === 'touchstart') {
-                if (player.onGround) {
-                    player.dy = JUMP_FORCE;
-                    player.onGround = false;
+            
+            let clientX, clientY;
+            if (e.type === 'touchstart') {
+                clientX = e.touches[0].clientX;
+                clientY = e.touches[0].clientY;
+            } else if (e.type === 'mousedown') {
+                clientX = e.clientX;
+                clientY = e.clientY;
+            }
+
+            let orbClicked = false;
+
+            if (clientX !== undefined) {
+                for (let i = orbs.length - 1; i >= 0; i--) {
+                    const orb = orbs[i];
+                    const dist = Math.sqrt((clientX - orb.x)**2 + (clientY - (orb.y + Math.sin(orb.pulse)*15))**2);
+                    
+                    if (dist < ORB_HIT_RADIUS) {
+                        player.dy = ORB_JUMP; 
+                        player.onGround = false;
+                        player.isPowered = 60;
+                        score += 10;
+                        createExplosion(orb.x, orb.y + Math.sin(orb.pulse)*15, '#ffcc00');
+                        orbs.splice(i, 1);
+                        orbClicked = true;
+                        break; 
+                    }
+                }
+            }
+
+            if (!orbClicked) {
+                if (e.code === 'Space' || e.type === 'mousedown' || e.type === 'touchstart') {
+                    if (player.onGround) {
+                        player.dy = BASE_JUMP;
+                        player.onGround = false;
+                    }
                 }
             }
         }
 
-        window.addEventListener('keydown', handleInput);
+        window.addEventListener('keydown', (e) => { if(e.code === 'Space') handleInput(e); });
         window.addEventListener('mousedown', handleInput);
         window.addEventListener('touchstart', (e) => {
             if (e.target.tagName !== 'BUTTON') {
@@ -184,220 +272,250 @@
         }
 
         function spawnObstacle() {
-            const types = ['claw', 'paw', 'swipe'];
+            const types = ['paw', 'swipe', 'tall'];
             const type = types[Math.floor(Math.random() * types.length)];
             let lastX = obstacles.length > 0 ? obstacles[obstacles.length - 1].x : canvas.width;
-            let spawnX = Math.max(canvas.width + 200, lastX + 500 + Math.random() * 500);
+            
+            const minGap = Math.max(400, 700 - (currentSpeed * 15));
+            const spawnX = Math.max(canvas.width + 200, lastX + minGap + Math.random() * 300);
 
-            let obs = {
-                x: spawnX,
-                type: type,
-                width: 50,
-                height: 50
-            };
-
-            if (type === 'paw') { obs.width = 65; obs.height = 80; }
-            if (type === 'swipe') { obs.width = 100; obs.height = 45; }
+            let obs = { x: spawnX, type: type, width: 50, height: 50 };
+            if (type === 'paw') { obs.width = 75; obs.height = 90; }
+            if (type === 'swipe') { obs.width = 120; obs.height = 45; }
+            if (type === 'tall') { obs.width = 45; obs.height = 125; }
             obstacles.push(obs);
+
+            if (obstacles.length > 0 && Math.random() > 0.3) {
+                spawnOrb(spawnX - 250);
+            }
+        }
+
+        function spawnOrb(x) {
+            orbs.push({
+                x: x, 
+                y: groundY - 160 - Math.random() * 100,
+                width: 40,
+                height: 60,
+                pulse: Math.random() * Math.PI * 2
+            });
         }
 
         function createExplosion(x, y, color) {
-            for (let i = 0; i < 25; i++) {
+            for (let i = 0; i < 30; i++) {
                 particles.push({
-                    x: x,
-                    y: y,
-                    vx: (Math.random() - 0.5) * 10,
-                    vy: (Math.random() - 0.5) * 10,
+                    x: x, y: y,
+                    vx: (Math.random() - 0.5) * 12,
+                    vy: (Math.random() - 0.5) * 12,
                     size: Math.random() * 5 + 2,
                     life: 1.0,
-                    color: color
+                    color: i % 2 === 0 ? color : '#ffffff'
                 });
             }
         }
 
         function drawDog() {
+            if (player.isPowered > 0) {
+                ctx.save();
+                ctx.globalAlpha = player.isPowered / 100;
+                ctx.fillStyle = '#ffcc00';
+                ctx.beginPath();
+                ctx.roundRect(player.x - 30, player.y - 5, player.width + 10, player.height + 10, 20);
+                ctx.fill();
+                ctx.restore();
+                player.isPowered--;
+            }
+
             ctx.save();
             ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
             ctx.rotate(player.rotation);
+            const w = player.width;
+            const h = player.height;
+            const wag = Math.sin(tick * 0.2) * 0.3;
             
-            const size = player.width;
-            const half = size / 2;
-
-            // Tail
+            // 1. Tail (Back layer)
             ctx.fillStyle = '#c68e4f';
             ctx.beginPath();
-            ctx.ellipse(-half, 0, 15, 6, Math.PI/4, 0, Math.PI * 2);
+            ctx.ellipse(-w/2 + 5, 0, 20, 8, -0.4 + wag, 0, Math.PI * 2);
             ctx.fill();
 
-            // Body
+            // 2. Legs
+            ctx.fillStyle = '#b58348';
+            const legH = 15;
+            const legW = 10;
+            const legShift = player.onGround ? Math.sin(tick * 0.3) * 12 : 0;
+            ctx.fillRect(-w/2 + 10 - legShift, h/2 - 10, legW, legH);
+            ctx.fillRect(w/2 - 25 + legShift, h/2 - 10, legW, legH);
+
+            // 3. Body (Middle layer)
             ctx.fillStyle = player.color;
+            if (player.isPowered > 0) {
+                ctx.shadowColor = '#ffcc00';
+                ctx.shadowBlur = 20;
+            }
             ctx.beginPath();
-            ctx.roundRect(-half, -half + 10, size, size - 10, 10);
+            ctx.roundRect(-w/2, -h/2, w, h, 20);
             ctx.fill();
 
-            // Head
+            // 4. Head (Front layer)
             ctx.beginPath();
-            ctx.arc(half - 10, -half + 5, 20, 0, Math.PI * 2);
+            ctx.arc(w/2 - 10, -h/2 + 5, 25, 0, Math.PI * 2);
             ctx.fill();
 
-            // Ears
-            ctx.fillStyle = '#8d5d2e';
+            // 5. Ears (Top layer)
+            ctx.fillStyle = '#c68e4f';
             ctx.beginPath();
-            ctx.ellipse(half - 25, -half - 5, 12, 6, Math.PI/3, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.ellipse(half + 5, -half - 5, 12, 6, -Math.PI/3, 0, Math.PI * 2);
+            ctx.ellipse(w/2 - 25, -h/2 - 10, 10, 18, -0.3, 0, Math.PI * 2);
             ctx.fill();
 
-            // Eyes
+            // 6. Facial Features
+            ctx.fillStyle = '#111';
+            ctx.beginPath();
+            ctx.arc(w/2 + 10, -h/2 + 8, 5, 0, Math.PI * 2);
+            ctx.fill();
+
             ctx.fillStyle = 'white';
             ctx.beginPath();
-            ctx.arc(half - 15, -half, 5, 0, Math.PI * 2);
-            ctx.arc(half - 2, -half, 5, 0, Math.PI * 2);
+            ctx.arc(w/2 - 5, -h/2 + 2, 7, 0, Math.PI * 2);
             ctx.fill();
-            
             ctx.fillStyle = 'black';
             ctx.beginPath();
-            ctx.arc(half - 15, -half, 2, 0, Math.PI * 2);
-            ctx.arc(half - 2, -half, 2, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Nose
-            ctx.beginPath();
-            ctx.arc(half - 8, -half + 8, 3, 0, Math.PI * 2);
+            ctx.arc(w/2 - 2, -h/2 + 2, 3.5, 0, Math.PI * 2);
             ctx.fill();
 
             ctx.restore();
         }
 
-        function drawCatPaw(x, y, w, h, isLarge) {
+        function drawCatPaw(x, y, w, h) {
             ctx.save();
-            
-            // Cat Fur Color (Grey/Dark Grey)
-            const furColor = '#4a4a4a';
-            const padColor = '#ff9999'; // Pink toe pads
-            const clawColor = '#ffffff'; // White claws
-            
-            const toeCount = isLarge ? 4 : 3;
-            const toeWidth = w / toeCount;
-            
-            // Draw Claws first (behind the paw)
-            ctx.fillStyle = clawColor;
-            ctx.shadowBlur = 5;
-            ctx.shadowColor = '#fff';
-            for(let i = 0; i < toeCount; i++) {
-                const centerX = x + (i * toeWidth) + (toeWidth/2);
+            const furColor = '#1a1a1a';
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = 'red';
+            ctx.fillStyle = '#eee';
+            for(let i = 0; i < 3; i++) {
+                const cx = x + (i * (w/3)) + (w/6);
                 ctx.beginPath();
-                ctx.moveTo(centerX - 4, y - h * 0.4);
-                ctx.quadraticCurveTo(centerX, y - h, centerX + 4, y - h * 0.4);
+                ctx.moveTo(cx - 4, y - h);
+                ctx.lineTo(cx, y - h - 25);
+                ctx.lineTo(cx + 4, y - h);
                 ctx.fill();
             }
-            ctx.shadowBlur = 0;
-
-            // Draw Toes/Fur
             ctx.fillStyle = furColor;
-            for(let i = 0; i < toeCount; i++) {
-                const centerX = x + (i * toeWidth) + (toeWidth/2);
-                ctx.beginPath();
-                ctx.ellipse(centerX, y - h * 0.3, toeWidth/2, h * 0.4, 0, 0, Math.PI * 2);
-                ctx.fill();
-                
-                // Toe Pads
-                ctx.fillStyle = padColor;
-                ctx.beginPath();
-                ctx.ellipse(centerX, y - h * 0.35, toeWidth/3, h * 0.2, 0, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.fillStyle = furColor;
-            }
-
-            // Main Paw Pad Base
             ctx.beginPath();
-            ctx.roundRect(x, y - h * 0.2, w, h * 0.3, 10);
+            ctx.roundRect(x, y - h, w, h, 12);
             ctx.fill();
-            
+            ctx.strokeStyle = '#ff3300';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x, y-h, w, h);
             ctx.restore();
         }
 
-        function drawObstacle(obs) {
-            if (obs.type === 'claw') {
-                drawCatPaw(obs.x, groundY, obs.width, obs.height, false);
-            } else if (obs.type === 'paw') {
-                drawCatPaw(obs.x, groundY, obs.width, obs.height, true);
-            } else if (obs.type === 'swipe') {
-                drawCatPaw(obs.x, groundY, obs.width, obs.height, true);
-            }
+        function drawGoldenSpike(orb) {
+            orb.pulse += 0.1;
+            const floatOffset = Math.sin(orb.pulse) * 15;
+            const y = orb.y + floatOffset;
+            
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(orb.x, y, ORB_HIT_RADIUS, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255, 204, 0, ${0.04 + Math.sin(orb.pulse * 0.5) * 0.02})`;
+            ctx.fill();
+
+            ctx.shadowBlur = 25;
+            ctx.shadowColor = '#ffcc00';
+            
+            ctx.beginPath();
+            ctx.moveTo(orb.x, y - 40); 
+            ctx.lineTo(orb.x + 20, y); 
+            ctx.lineTo(orb.x, y + 40); 
+            ctx.lineTo(orb.x - 20, y); 
+            ctx.closePath();
+            
+            const grad = ctx.createLinearGradient(orb.x - 20, y - 40, orb.x + 20, y + 40);
+            grad.addColorStop(0, '#fff3a3');
+            grad.addColorStop(0.5, '#ffcc00');
+            grad.addColorStop(1, '#a67c00');
+            ctx.fillStyle = grad;
+            ctx.fill();
+            ctx.restore();
+        }
+
+        function updateUI() {
+            scoreDisplay.innerText = `${Math.floor(score).toString().padStart(5, '0')}m`;
+            speedDisplay.innerText = `Speed: ${(currentSpeed / BASE_SPEED).toFixed(2)}x`;
         }
 
         function animate() {
             if (!gameRunning) {
-                ctx.fillStyle = '#0a0a0a';
+                ctx.fillStyle = '#050505';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 updateParticles();
                 if (particles.length > 0) animationFrame = requestAnimationFrame(animate);
                 return;
             }
 
-            // Draw Background
-            ctx.fillStyle = '#0a0a0a';
+            tick++;
+            ctx.fillStyle = '#050505';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
+            currentSpeed += SPEED_INCREMENT;
 
-            // Ground (Wooden floor style)
-            ctx.fillStyle = '#1a0d00';
+            ctx.fillStyle = '#0f0800';
             ctx.fillRect(0, groundY, canvas.width, GROUND_Y_OFFSET);
-            ctx.strokeStyle = '#331a00';
-            ctx.lineWidth = 4;
-            ctx.beginPath();
-            ctx.moveTo(0, groundY);
-            ctx.lineTo(canvas.width, groundY);
-            ctx.stroke();
-
-            // Floorboards
-            ctx.strokeStyle = '#261400';
-            ctx.lineWidth = 1;
-            for (let i = 0; i < canvas.width; i += 80) {
-                let x = (i - (score * SPEED * 2) % 80); 
+            ctx.strokeStyle = '#221100';
+            ctx.lineWidth = 2;
+            for (let i = 0; i < canvas.width + 100; i += 100) {
+                let x = (i - (score * currentSpeed * 1.5) % 100); 
                 ctx.beginPath();
                 ctx.moveTo(x, groundY);
-                ctx.lineTo(x, canvas.height);
+                ctx.lineTo(x - 50, canvas.height);
                 ctx.stroke();
             }
 
-            // Player Update
-            player.dy += GRAVITY;
+            player.dy += BASE_GRAVITY;
             player.y += player.dy;
-
             if (player.y + player.height > groundY) {
                 player.y = groundY - player.height;
                 player.dy = 0;
                 player.onGround = true;
                 player.rotation = 0;
             } else {
-                player.rotation += 0.12; 
+                player.rotation = player.dy * 0.02; 
             }
 
-            score += 0.05;
-            scoreDisplay.innerText = `Distance: ${Math.floor(score)}m`;
-
-            if (obstacles.length < 5) spawnObstacle();
+            score += currentSpeed / 60;
+            updateUI();
+            
+            if (obstacles.length < 8) spawnObstacle();
 
             for (let i = obstacles.length - 1; i >= 0; i--) {
                 let obs = obstacles[i];
-                obs.x -= SPEED;
-                drawObstacle(obs);
+                obs.x -= currentSpeed;
+                drawCatPaw(obs.x, groundY, obs.width, obs.height);
+                if (player.x + player.width - 25 > obs.x && 
+                    player.x + 25 < obs.x + obs.width && 
+                    player.y + player.height - 10 > groundY - obs.height) {
+                    endGame();
+                }
+                if (obs.x + obs.width < -200) obstacles.splice(i, 1);
+            }
 
-                // Collision
-                if (player.x + player.width - 15 > obs.x && 
-                    player.x + 15 < obs.x + obs.width && 
-                    player.y + player.height - 8 > groundY - obs.height) {
+            for (let i = orbs.length - 1; i >= 0; i--) {
+                let orb = orbs[i];
+                orb.x -= currentSpeed;
+                const orbY = orb.y + Math.sin(orb.pulse) * 15;
+                drawGoldenSpike(orb);
+                
+                if (player.x + player.width - 20 > orb.x - 20 && 
+                    player.x + 20 < orb.x + 20 && 
+                    player.y + player.height - 10 > orbY - 40 &&
+                    player.y + 10 < orbY + 40) {
                     endGame();
                 }
 
-                if (obs.x + obs.width < -100) obstacles.splice(i, 1);
+                if (orb.x < -200) orbs.splice(i, 1);
             }
 
             updateParticles();
             drawDog();
-
             animationFrame = requestAnimationFrame(animate);
         }
 
@@ -406,9 +524,9 @@
                 let p = particles[i];
                 p.x += p.vx;
                 p.y += p.vy;
-                p.vy += 0.2;
-                p.life -= 0.02;
-                ctx.globalAlpha = p.life;
+                p.vy += 0.3;
+                p.life -= 0.025;
+                ctx.globalAlpha = Math.max(0, p.life);
                 ctx.fillStyle = p.color;
                 ctx.fillRect(p.x, p.y, p.size, p.size);
                 ctx.globalAlpha = 1;
